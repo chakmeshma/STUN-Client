@@ -28,21 +28,41 @@ static bool bSocketCreated = false;
 static bool bFinished = false;
 
 
-static void cleanup() {
-	if (bSocketCreated) closesocket(theSocket);
-	if (bAddrInfoCalled) freeaddrinfo(aiResult);
-	if (bWSAInited) WSACleanup();
+static std::string getWSALastErrorText(int lastErrorCode) {
+	char* s = NULL;
+
+	FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+		NULL, lastErrorCode,
+		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+		(LPSTR)&s, 0, NULL);
+
+	std::string* strError = new std::string(s);
+
+	LocalFree(s);
+
+	return *strError;
 }
 
-int fetch(const char* const hostAddress, const unsigned short hostPort, std::string result)
-{
-	std::stringstream result_ss;
-
+static void resetStateBooleans() {
 	bWSAInited = false;
 	bAddrInfoCalled = false;
 	bSocketCreated = false;
 	bFinished = false;
+}
 
+static void cleanup() {
+	if (bSocketCreated) closesocket(theSocket);
+	if (bAddrInfoCalled) freeaddrinfo(aiResult);
+	if (bWSAInited) WSACleanup();
+
+	resetStateBooleans();
+}
+
+extern "C" __declspec(dllexport) int fetch(const char* const hostAddress, const unsigned short hostPort, std::string& result)
+{
+	resetStateBooleans();
+
+	std::stringstream result_ss;
 	int iResult;
 	WSADATA wsaData;
 
@@ -50,7 +70,7 @@ int fetch(const char* const hostAddress, const unsigned short hostPort, std::str
 	bWSAInited = true;
 
 	if (iResult != 0) {
-		result_ss << "WSAStartup failed: " << WSAGetLastError();
+		result_ss << "WSAStartup failed: " << getWSALastErrorText(iResult);
 
 		result = result_ss.str();
 
@@ -72,7 +92,7 @@ int fetch(const char* const hostAddress, const unsigned short hostPort, std::str
 	bAddrInfoCalled = true;
 
 	if (iResult != 0) {
-		result_ss << "Address resolution failed: " << WSAGetLastError();
+		result_ss << "getaddrinfo failed: " << getWSALastErrorText(WSAGetLastError());
 
 		result = result_ss.str();
 
@@ -84,18 +104,8 @@ int fetch(const char* const hostAddress, const unsigned short hostPort, std::str
 	theSocket = socket(aiResult->ai_family, aiResult->ai_socktype, aiResult->ai_protocol);
 	bSocketCreated = true;
 
-	if (iResult != 0) {
-		result_ss << "Couldn't get local socket name (address): " << WSAGetLastError();
-
-		result = result_ss.str();
-
-		cleanup();
-
-		return EXIT_FAILURE;
-	}
-
-	if (theSocket == INVALID_SOCKET) {
-		result_ss << "Couldn't create socket: " << WSAGetLastError();
+	if (theSocket == INVALID_SOCKET) { //TODO: fix this
+		result_ss << "Error at socket(): " << getWSALastErrorText(WSAGetLastError());
 
 		result = result_ss.str();
 
@@ -115,7 +125,7 @@ int fetch(const char* const hostAddress, const unsigned short hostPort, std::str
 
 
 	if (sendto(theSocket, (const char*)pdu, sizePDU, 0, aiResult->ai_addr, sizeof(*aiResult->ai_addr)) == SOCKET_ERROR) {
-		result_ss << "UDP send failed: " << WSAGetLastError();
+		result_ss << "sendto failed with error: " << getWSALastErrorText(WSAGetLastError());
 
 		result = result_ss.str();
 
@@ -139,7 +149,7 @@ int fetch(const char* const hostAddress, const unsigned short hostPort, std::str
 	while (!bFinished) {
 
 		if ((sizeReceived = recvfrom(theSocket, (char*)bufferReceive, sizeReceiveBuffer, 0, (sockaddr*)&localAddress, &sizeLocalAddress)) == SOCKET_ERROR) {
-			result_ss << "UDP receive failed: " << WSAGetLastError();
+			result_ss << "recvfrom failed with error: " << getWSALastErrorText(WSAGetLastError());
 
 			result = result_ss.str();
 
