@@ -75,7 +75,6 @@ Message Message::fromPacket(uint8* pdu, unsigned int packetSize) {
 	//Parsing Attributes START
 
 	uint8* pAttributes = pdu + 20;
-	bool isDifferentByteOrder = isHostNetworkDifferentEndianness();
 
 	do {
 		uint16 attributeType;
@@ -157,23 +156,6 @@ void Message::getMappedAddress(uint32 targetIPv4, uint16 targetPort, uint32* ipv
 	}
 
 	throw ProcessingException(ProcessingExceptionType::NAMappedAddress);
-}
-
-bool Message::isHostNetworkDifferentEndianness()
-{
-	uint16 testValue = 0x0FF0;
-	uint16 resultValue;
-
-	resultValue = htons(testValue);
-
-	return (testValue != resultValue);
-}
-
-bool Message::isHostBigEndian()
-{
-	uint16 testValue = 0x01FF;
-
-	return (reinterpret_cast<uint8*>(&testValue)[0] == 0x01);
 }
 
 void Message::getTransactionID(uint32 transactionID[3]) {

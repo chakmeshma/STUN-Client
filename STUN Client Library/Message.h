@@ -73,8 +73,6 @@ public:
 	void getMappedAddress(uint32 targetIPv4, uint16 targetPort, uint32* ipv4, uint16* port);
 	const static uint32 magic_cookie;
 private:
-	static bool isHostBigEndian();
-	static bool isHostNetworkDifferentEndianness();
 	std::vector<MessageAttribute> attributes;
 	MessageMethod method;
 	MessageClass messageClass;
