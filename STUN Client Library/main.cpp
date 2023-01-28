@@ -20,7 +20,6 @@
 
 static addrinfo aiHints, * aiResult;
 static SOCKET theSocket;
-static sockaddr_in localAddress;
 
 static bool bWSAInited = false;
 static bool bAddrInfoCalled = false;
@@ -134,21 +133,15 @@ extern "C" __declspec(dllexport) int fetch(const char* const hostAddress, const 
 		return EXIT_FAILURE;
 	}
 
-	const uint16 sizeReceiveBuffer = 1024;
-
+	const uint16 sizeReceiveBuffer = 10240;
 	uint8 bufferReceive[sizeReceiveBuffer];
-
-	int sizeLocalAddress = sizeof(localAddress);
-
-	iResult = getsockname(theSocket, (sockaddr*)&localAddress, &sizeLocalAddress);
-
 	uint32 sizeReceived = 0;
 
 	std::stringstream result_string_stream;
 
 	while (!bFinished) {
 
-		if ((sizeReceived = recvfrom(theSocket, (char*)bufferReceive, sizeReceiveBuffer, 0, (sockaddr*)&localAddress, &sizeLocalAddress)) == SOCKET_ERROR) {
+		if ((sizeReceived = recvfrom(theSocket, (char*)bufferReceive, sizeReceiveBuffer, 0, nullptr, nullptr)) == SOCKET_ERROR) {
 			result_ss << "recvfrom failed with error: " << getWSALastErrorText(WSAGetLastError());
 
 			result = result_ss.str();
