@@ -70,7 +70,6 @@ extern "C" __declspec(dllexport) int fetch(const char* const hostAddress, const 
 
 	if (iResult != 0) {
 		result_ss << "WSAStartup failed: " << getWSALastErrorText(iResult);
-
 		result = result_ss.str();
 
 		cleanup();
@@ -92,7 +91,6 @@ extern "C" __declspec(dllexport) int fetch(const char* const hostAddress, const 
 
 	if (iResult != 0) {
 		result_ss << "getaddrinfo failed: " << getWSALastErrorText(WSAGetLastError());
-
 		result = result_ss.str();
 
 		cleanup();
@@ -103,9 +101,8 @@ extern "C" __declspec(dllexport) int fetch(const char* const hostAddress, const 
 	theSocket = socket(aiResult->ai_family, aiResult->ai_socktype, aiResult->ai_protocol);
 	bSocketCreated = true;
 
-	if (theSocket == INVALID_SOCKET) { //TODO: fix this
+	if (theSocket == INVALID_SOCKET) {
 		result_ss << "Error at socket(): " << getWSALastErrorText(WSAGetLastError());
-
 		result = result_ss.str();
 
 		cleanup();
@@ -120,12 +117,13 @@ extern "C" __declspec(dllexport) int fetch(const char* const hostAddress, const 
 	message.getTransactionID(requestTransactionID);
 
 	uint8 pdu[1024];
-	uint16 sizePDU = message.encodePacket(pdu);
+	uint16 sizePDU = message.encodeMessageWOAttrs(pdu);
+
+	//std::cout << chek(pdu, sizePDU, true);
 
 
 	if (sendto(theSocket, (const char*)pdu, sizePDU, 0, aiResult->ai_addr, sizeof(*aiResult->ai_addr)) == SOCKET_ERROR) {
 		result_ss << "sendto failed with error: " << getWSALastErrorText(WSAGetLastError());
-
 		result = result_ss.str();
 
 		cleanup();
@@ -137,13 +135,10 @@ extern "C" __declspec(dllexport) int fetch(const char* const hostAddress, const 
 	uint8 bufferReceive[sizeReceiveBuffer];
 	uint32 sizeReceived = 0;
 
-	std::stringstream result_string_stream;
-
 	while (!bFinished) {
 
 		if ((sizeReceived = recvfrom(theSocket, (char*)bufferReceive, sizeReceiveBuffer, 0, nullptr, nullptr)) == SOCKET_ERROR) {
 			result_ss << "recvfrom failed with error: " << getWSALastErrorText(WSAGetLastError());
-
 			result = result_ss.str();
 
 			cleanup();
@@ -167,10 +162,8 @@ extern "C" __declspec(dllexport) int fetch(const char* const hostAddress, const 
 
 			uint32 mappedIPv4;
 			uint16 mappedPort;
-			uint16 targetPort = htons(*reinterpret_cast<uint32*>(&targetAddress->sin_port));
-			uint32 targetIPv4 = *reinterpret_cast<uint32*>(&targetAddress->sin_addr);
 
-			message.getMappedAddress(targetIPv4, targetPort, &mappedIPv4, &mappedPort);
+			message.getMappedAddress(&mappedIPv4, &mappedPort);
 
 			result_ss << "Mapped Address: " \
 				<< (int)reinterpret_cast<uint8*>(&mappedIPv4)[3] << "." \
