@@ -39,8 +39,8 @@ Message Message::fromPacket(uint8* pdu, uint32 packetSize) {
 	uint8 methodBitIndex = 0;
 	uint8 classBitIndex = 0;
 
-	uint16 method = 0;
-	uint8 messageClass = 0;
+	uint16 encMethod = 0;
+	uint8 encClass = 0;
 
 	for (uint8 bitIndex = 0; bitIndex < 14; bitIndex++) {
 		bool isMethodBit = (message_type_method_mask >> bitIndex) & 1;
@@ -48,9 +48,9 @@ Message Message::fromPacket(uint8* pdu, uint32 packetSize) {
 			bool bit = (hMessageType >> bitIndex) & 1;
 
 			if (bit)
-				method |= 1 << methodBitIndex++;
+				encMethod |= 1 << methodBitIndex++;
 			else
-				method &= ~(1 << methodBitIndex++);
+				encMethod &= ~(1 << methodBitIndex++);
 		}
 
 		bool isClassBit = (message_type_class_mask >> bitIndex) & 1;
@@ -58,96 +58,58 @@ Message Message::fromPacket(uint8* pdu, uint32 packetSize) {
 			bool bit = (hMessageType >> bitIndex) & 1;
 
 			if (bit)
-				messageClass |= 1 << classBitIndex++;
+				encClass |= 1 << classBitIndex++;
 			else
-				messageClass &= ~(1 << classBitIndex++);
+				encClass &= ~(1 << classBitIndex++);
 		}
 	}
 
-	std::cout << chek((uint8*)&messageClass, sizeof(messageClass));
-	std::cout << std::endl << std::endl;
-	std::cout << chek((uint8*)&method, sizeof(method));
+	MessageClass theClass = static_cast<MessageClass>(encClass);
+	MessageMethod theMethod = static_cast<MessageMethod>(encMethod);
 
-	MessageClass theClass = static_cast<MessageClass>(messageClass);
-	MessageMethod theMethod = static_cast<MessageMethod>(method);
+	uint16 hMessageLength = ntohs(*reinterpret_cast<uint16*>(pdu + 2));
+	if (packetSize != hMessageLength + 20)
+		throw MessageProcessingException();
+	if (hMessageLength % 4 != 0)
+		throw MessageProcessingException();
 
-	int bbbbbbbbbb = 3434334;
+	uint32 transactionID[3];
+	transactionID[0] = *(reinterpret_cast<uint32*>(pdu) + 2);
+	transactionID[1] = *(reinterpret_cast<uint32*>(pdu) + 3);
+	transactionID[2] = *(reinterpret_cast<uint32*>(pdu) + 4);
 
+	std::vector<MessageAttribute> attributes;
 
-	//uint16 messageType = ntohs(*reinterpret_cast<uint16*>(pdu));
+	// ATTRIBUTES PROCESSING BEINGS
 
-	//std::cout << chek((uint8*)&messageType, 2) << std::endl;
+	uint8* pAttributes = pdu + 20;
 
-	////ZUM TESTEN BEGINN
+	do {
+		uint16 hAttributeType;
+		uint16 hAttributeLength;
 
-	///*unsigned short mask = 0b 00111110 11101111;
+		hAttributeType = ntohs(*reinterpret_cast<uint16*>(pAttributes));
+		pAttributes += 2;
 
-	//std::cout << "Mask:" << std::endl;
-	//std::cout << chek((uint8*)&mask, 2) << std::endl;
-	//std::cout << std::endl;
-	//std::cout << "PDU (first two bytes):" << std::endl;
-	//std::cout << chek(pdu, 2) << std::endl;*/
+		hAttributeLength = ntohs(*reinterpret_cast<uint16*>(pAttributes));
+		MessageAttribute attribute(hAttributeLength, static_cast<MessageAttributeType>(hAttributeType));
+		pAttributes += 2;
 
-	////ZUM TESTEN ENDE
+		memcpy(attribute.data, pAttributes, hAttributeLength);
 
-	//messageMethodEncoded = (*(reinterpret_cast<uint16*>(pdu))) & 0b0011111011101111;
-	//messageLength = htons(*reinterpret_cast<uint16*>(pdu + 2));
-	//messageClassEncoded = (*(reinterpret_cast<uint16*>(pdu))) & 0b0000000100010000;
+		pAttributes += (hAttributeLength % 4 == 0) ? \
+			(hAttributeLength) : (hAttributeLength + (4 - (hAttributeLength % 4)));  //Skip over attribute value padding due to 4-byte alignment
 
-	//if (messageLength % 4 != 0)
-	//	throw MessageProcessingException();
+		attributes.push_back(attribute);
 
-	//transactionID[0] = *(reinterpret_cast<uint32*>(pdu + 8));
-	//transactionID[1] = *(reinterpret_cast<uint32*>(pdu + 12));
-	//transactionID[2] = *(reinterpret_cast<uint32*>(pdu + 16));
+	} while (pAttributes < pdu + 20 + hMessageLength);
 
-	//switch (messageMethodEncoded) {
-	//case 0x0001: //Binding
-	//	messageMethod = MessageMethod::Binding;
-	//	break;
-	//default:
-	//	messageMethod = MessageMethod::Unknown;
-	//}
+	if (pAttributes != pdu + 20 + hMessageLength)
+		throw MessageProcessingException();
 
-	//switch (messageClassEncoded) {
-	//case 0x0100: //Success Response
-	//	messageClass = MessageClass::SuccessResponse;
-	//	break;
-	//default:
-	//	messageClass = MessageClass::Unknown;
-	//}
+	// ATTRIBUTES PROCESSING END
 
-	////Parsing Attributes START
-
-	//uint8* pAttributes = pdu + 20;
-
-	//do {
-	//	uint16 attributeType;
-	//	uint16 attributeLength;
-
-	//	attributeType = ntohs(*reinterpret_cast<uint16*>(pAttributes));
-	//	pAttributes += 2;
-	//	attributeLength = ntohs(*reinterpret_cast<uint16*>(pAttributes));
-	//	pAttributes += 2;
-
-	//	MessageAttribute attribute(attributeLength);
-	//	attribute.type = static_cast<MessageAttributeType>(attributeType);
-
-	//	memcpy(attribute.data.get(), pAttributes, attributeLength);
-
-	//	pAttributes += (attributeLength % 4 == 0) ? (attributeLength) : (attributeLength + (4 - (attributeLength % 4)));  //Skip over attribute value padding due to 4-byte alignment
-
-	//	attributes.push_back(attribute);
-
-	//} while (pAttributes < pdu + 20 + messageLength);
-
-	////Parsing Attributes END
-
-	//Message message = Message(messageMethod, messageClass, transactionID, attributes);
-
-	//return message;
-
-	return Message(MessageMethod::Binding, MessageClass::Request, std::vector<MessageAttribute>());
+	return Message(theMethod, theClass, attributes);
 }
 
 uint32 Message::encodeMessageWOAttrs(uint8* pdu) {
@@ -196,23 +158,23 @@ uint32 Message::encodeMessageWOAttrs(uint8* pdu) {
 
 void Message::getMappedAddress(uint32* ipv4, uint16* port)
 {
-	for (auto attribute : attributes) {
-		if (attribute.type == MessageAttributeType::XOR_MAPPED_ADDRESS && attribute.length == 8 && reinterpret_cast<uint8*>(attribute.data.get())[1] == 1) {
+	//for (auto attribute : attributes) {
+	//	if (attribute.type == MessageAttributeType::XOR_MAPPED_ADDRESS && attribute.length == 8 && reinterpret_cast<uint8*>(attribute.value.get())[1] == 1) {
 
-			uint16 encodedPort = *reinterpret_cast<uint16*>(attribute.data.get() + 2);
-			uint32 encodedIP = *reinterpret_cast<uint32*>(attribute.data.get() + 4);
+	//		uint16 encodedPort = *reinterpret_cast<uint16*>(attribute.value.get() + 2);
+	//		uint32 encodedIP = *reinterpret_cast<uint32*>(attribute.value.get() + 4);
 
-			encodedPort = ntohs(encodedPort);
-			encodedIP = ntohl(encodedIP);
+	//		encodedPort = ntohs(encodedPort);
+	//		encodedIP = ntohl(encodedIP);
 
-			*port = encodedPort ^ static_cast<const uint16>(magic_cookie >> 16);
-			*ipv4 = encodedIP ^ magic_cookie;
+	//		*port = encodedPort ^ static_cast<const uint16>(magic_cookie >> 16);
+	//		*ipv4 = encodedIP ^ magic_cookie;
 
-			return;
-		}
-	}
+	//		return;
+	//	}
+	//}
 
-	throw MessageProcessingException();
+	//throw MessageProcessingException();
 }
 
 void Message::getTransactionID(uint32 transactionID[3]) {
