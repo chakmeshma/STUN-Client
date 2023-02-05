@@ -1,31 +1,17 @@
+#include <winsock2.h>
+#include <random>
 #include "Message.h"
 
 static std::random_device rd;
 static std::mt19937 gen(rd());
 static std::uniform_int_distribution<uint32> dist(0, ((uint32)(0) - 1));
 
+MessageAttribute::MessageAttribute(uint32 dataSize) : type(MessageAttributeType::Unknown), length(dataSize), data(new uint8[dataSize]) {}
+MessageAttribute::MessageAttribute(uint32 dataSize, MessageAttributeType attributeType) : type(attributeType), length(dataSize), data(new uint8[dataSize]) {}
+
 const uint32 Message::magic_cookie = 0x2112A442;
 const uint16 Message::message_type_method_mask = 0b0011111011101111;
 const uint16 Message::message_type_class_mask = 0b0000000100010000;
-
-Message::Message(MessageMethod method, MessageClass messageClass, std::vector<MessageAttribute> attributes)
-{
-	transactionID[0] = dist(gen);
-	transactionID[1] = dist(gen);
-	transactionID[2] = dist(gen);
-	this->method = method;
-	this->messageClass = messageClass;
-	this->attributes = attributes;
-}
-
-Message::Message(MessageMethod method, MessageClass messageClass, uint32 transactionID[3], std::vector<MessageAttribute> attributes) {
-	memcpy(this->transactionID, transactionID, sizeof(uint32) * 3);
-	this->method = method;
-	this->messageClass = messageClass;
-	this->attributes = attributes;
-}
-
-//TODO: check for unknown attributes or unexpected attributes that might cause the decodation to fail
 Message Message::fromPacket(uint8* pdu, uint32 packetSize) {
 	if (packetSize < 20 || (packetSize - 20) % 4 != 0)
 		throw MessageProcessingException();
@@ -109,9 +95,49 @@ Message Message::fromPacket(uint8* pdu, uint32 packetSize) {
 
 	// ATTRIBUTES PROCESSING END
 
-	return Message(theMethod, theClass, attributes);
+	return Message(theMethod, theClass, transactionID, attributes);
 }
+Message::Message(MessageMethod method, MessageClass messageClass)
+{
+	this->method = method;
+	this->messageClass = messageClass;
 
+	this->attributes = std::vector<MessageAttribute>();
+
+	populateRandomTransactionID();
+
+}
+Message::Message(MessageMethod method, MessageClass messageClass, std::vector<MessageAttribute> attributes)
+{
+	this->method = method;
+	this->messageClass = messageClass;
+
+	this->attributes = attributes;
+
+	populateRandomTransactionID();
+}
+Message::Message(MessageMethod method, MessageClass messageClass, uint32 transactionID[3])
+{
+	this->method = method;
+	this->messageClass = messageClass;
+
+	this->attributes = std::vector<MessageAttribute>();
+
+	this->transactionID[0] = transactionID[0];
+	this->transactionID[1] = transactionID[1];
+	this->transactionID[2] = transactionID[2];
+}
+Message::Message(MessageMethod method, MessageClass messageClass, uint32 transactionID[3], std::vector<MessageAttribute> attributes)
+{
+	this->method = method;
+	this->messageClass = messageClass;
+
+	this->attributes = attributes;
+
+	this->transactionID[0] = transactionID[0];
+	this->transactionID[1] = transactionID[1];
+	this->transactionID[2] = transactionID[2];
+}
 uint32 Message::encodeMessageWOAttrs(uint8* pdu) {
 	if (method == MessageMethod::Unknown)
 		throw MessageProcessingException();
@@ -155,7 +181,6 @@ uint32 Message::encodeMessageWOAttrs(uint8* pdu) {
 
 	return 20;
 }
-
 void Message::getMappedAddress(uint32* ipv4, uint16* port)
 {
 	//for (auto attribute : attributes) {
@@ -176,13 +201,8 @@ void Message::getMappedAddress(uint32* ipv4, uint16* port)
 
 	//throw MessageProcessingException();
 }
-
-void Message::getTransactionID(uint32 transactionID[3]) {
-	transactionID[0] = this->transactionID[0];
-	transactionID[1] = this->transactionID[1];
-	transactionID[2] = this->transactionID[2];
-}
-
-std::vector<MessageAttribute>& Message::getAttributes() {
-	return this->attributes;
+void Message::populateRandomTransactionID() {
+	transactionID[0] = dist(gen);
+	transactionID[1] = dist(gen);
+	transactionID[2] = dist(gen);
 }

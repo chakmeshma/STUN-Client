@@ -18,6 +18,9 @@
 #define WIN32_SOCK_MAJ_VER 2
 #define WIN32_SOCK_MIN_VER 2
 
+#define PDU_SEND_BUFFER_SIZE 1024
+#define PDU_RECEIVE_BUFFER_SIZE 1024
+
 static addrinfo aiHints, * aiResult;
 static SOCKET theSocket;
 
@@ -110,16 +113,13 @@ extern "C" __declspec(dllexport) int fetch(const char* const hostAddress, const 
 		return EXIT_FAILURE;
 	}
 
+	Message message = Message(MessageMethod::Binding, MessageClass::Request);
+
 	uint32 requestTransactionID[3];
+	memcpy(requestTransactionID, message.transactionID, sizeof(uint32) * 3);
 
-	Message message = Message(MessageMethod::Binding, MessageClass::Request, std::vector<MessageAttribute>());
-
-	message.getTransactionID(requestTransactionID);
-
-	uint8 pdu[1024];
+	uint8 pdu[PDU_SEND_BUFFER_SIZE];
 	uint16 sizePDU = message.encodeMessageWOAttrs(pdu);
-
-	//std::cout << chek(pdu, sizePDU, true);
 
 
 	if (sendto(theSocket, (const char*)pdu, sizePDU, 0, aiResult->ai_addr, sizeof(*aiResult->ai_addr)) == SOCKET_ERROR) {
@@ -131,13 +131,12 @@ extern "C" __declspec(dllexport) int fetch(const char* const hostAddress, const 
 		return EXIT_FAILURE;
 	}
 
-	const uint16 sizeReceiveBuffer = 10240;
-	uint8 bufferReceive[sizeReceiveBuffer];
+	uint8 bufferReceive[PDU_RECEIVE_BUFFER_SIZE];
 	uint32 sizeReceived = 0;
 
 	while (!bFinished) {
 
-		if ((sizeReceived = recvfrom(theSocket, (char*)bufferReceive, sizeReceiveBuffer, 0, nullptr, nullptr)) == SOCKET_ERROR) {
+		if ((sizeReceived = recvfrom(theSocket, (char*)bufferReceive, PDU_RECEIVE_BUFFER_SIZE, 0, nullptr, nullptr)) == SOCKET_ERROR) {
 			result_ss << "recvfrom failed with error: " << getWSALastErrorText(WSAGetLastError());
 			result = result_ss.str();
 
@@ -146,19 +145,10 @@ extern "C" __declspec(dllexport) int fetch(const char* const hostAddress, const 
 			return EXIT_FAILURE;
 		}
 		else {
-			uint32 responseTransactionID[3];
-			int transactionCompareResult;
-
 			Message message = Message::fromPacket(bufferReceive, sizeReceived);
 
-			message.getTransactionID(responseTransactionID);
-
-			transactionCompareResult = memcmp(requestTransactionID, responseTransactionID, sizeof(uint32) * 3);
-
-			if (transactionCompareResult != 0)
+			if (memcmp(requestTransactionID, message.transactionID, sizeof(uint32) * 3) != 0)
 				continue;
-
-			sockaddr_in* targetAddress = reinterpret_cast<sockaddr_in*>(aiResult->ai_addr);
 
 			uint32 mappedIPv4;
 			uint16 mappedPort;

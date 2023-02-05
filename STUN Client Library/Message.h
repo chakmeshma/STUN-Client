@@ -1,10 +1,7 @@
 #pragma once
 
-#include "types.h"
-#include <iostream>
 #include <vector>
-#include <random>
-#include <winsock2.h>
+#include "types.h"
 
 enum class MessageAttributeType : uint16 {
 	MAPPED_ADDRESS = 0x0001,
@@ -32,7 +29,7 @@ enum class MessageAttributeType : uint16 {
 	Reserved5 = 0x0007,
 	Reserved6 = 0x000B,
 
-	Unknown
+	Unknown = 0xFFFF
 };
 enum class MessageMethod : uint16 {
 	Binding = 0x001,
@@ -40,7 +37,7 @@ enum class MessageMethod : uint16 {
 	Reserved0 = 0x000,
 	Reserved1 = 0x002,
 
-	Unknown
+	Unknown = 0xFFFF
 };
 enum class MessageClass : uint8 {
 	Request = 0b00,
@@ -54,11 +51,8 @@ class MessageProcessingException : public std::exception {
 
 class MessageAttribute {
 public:
-	MessageAttribute(uint32 dataSize) : type(MessageAttributeType::Unknown), length(dataSize), data(new uint8[dataSize]) {}
-	MessageAttribute(uint32 dataSize, MessageAttributeType attributeType) : type(attributeType), length(dataSize), data(new uint8[dataSize]) {}
-	//~MessageAttribute() {
-	//	delete[] data;
-	//}
+	MessageAttribute(uint32 dataSize);
+	MessageAttribute(uint32 dataSize, MessageAttributeType attributeType);
 
 	MessageAttributeType type;
 	uint16 length;
@@ -67,21 +61,24 @@ public:
 
 class Message {
 public:
-	static Message fromPacket(uint8* pdu, uint32 packetSize); // Factory method
+	static Message fromPacket(uint8* pdu, uint32 packetSize);
+	Message(MessageMethod method, MessageClass messageClass);
 	Message(MessageMethod method, MessageClass messageClass, std::vector<MessageAttribute> attributes);
+	Message(MessageMethod method, MessageClass messageClass, uint32 transactionID[3]);
 	Message(MessageMethod method, MessageClass messageClass, uint32 transactionID[3], std::vector<MessageAttribute> attributes);
-	void getTransactionID(uint32 transactionID[3]);
-	std::vector<MessageAttribute>& getAttributes();
 	uint32 encodeMessageWOAttrs(uint8* pdu);
 	void getMappedAddress(uint32* ipv4, uint16* port);
-private:
-	static const uint32 magic_cookie;
-	static const uint16 message_type_method_mask;
-	static const uint16 message_type_class_mask;
+
 	std::vector<MessageAttribute> attributes;
 	MessageMethod method;
 	MessageClass messageClass;
 	uint32 transactionID[3];
+private:
+	void populateRandomTransactionID();
+
+	static const uint32 magic_cookie;
+	static const uint16 message_type_method_mask;
+	static const uint16 message_type_class_mask;
 };
 
 inline std::string chek(unsigned char* data, unsigned int size, bool reverse = false) {
