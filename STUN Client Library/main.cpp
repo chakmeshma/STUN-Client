@@ -85,9 +85,17 @@ bool start(std::string& result) {
 }
 bool fetch(const char* hostAddress, const unsigned short hostPort, std::string& result)
 {
-	if (bWSAInited) reset_cleanup();
-
 	std::stringstream result_ss;
+
+	if (bWSAInited)
+		reset_cleanup();
+	else
+	{
+		result_ss << "WSA not started up";
+		result = result_ss.str();
+		return false;
+	}
+
 	int iResult;
 
 	char strTargetPort[6];
@@ -128,16 +136,6 @@ bool fetch(const char* hostAddress, const unsigned short hostPort, std::string& 
 	uint8 requestPDU[PDU_SEND_BUFFER_SIZE];
 	uint16 sizePDU = requestMessage.encodeMessage(requestPDU); //TODO handle exceptions
 
-	uint8 transmissions = 0;
-
-	if (sendto(theSocket, (const char*)requestPDU, sizePDU, 0, aiResult->ai_addr, sizeof(*aiResult->ai_addr)) == SOCKET_ERROR) {
-		result_ss << "sendto failed with error: " << getWSALastErrorText(WSAGetLastError());
-		result = result_ss.str();
-		reset_cleanup();
-		return false;
-	}
-	transmissions++;
-
 	uint32 RTO = INITIAL_RTO;
 
 	iResult = setsockopt(theSocket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&RTO, sizeof(RTO));
@@ -148,114 +146,136 @@ bool fetch(const char* hostAddress, const unsigned short hostPort, std::string& 
 		return false;
 	}
 
+	uint16 transmissions = 0;
+
+	if (sendto(theSocket, (const char*)requestPDU, sizePDU, 0, aiResult->ai_addr, sizeof(*aiResult->ai_addr)) == SOCKET_ERROR) {
+		result_ss << "sendto failed with error: " << getWSALastErrorText(WSAGetLastError());
+		result = result_ss.str();
+		reset_cleanup();
+		return false;
+	}
+	transmissions++;
+
 	uint8 bufferReceive[PDU_RECEIVE_BUFFER_SIZE];
-	uint32 sizeReceived = 0;
+	int sizeReceived = 0;
 
 	while (true) {
+		sizeReceived = recvfrom(theSocket, (char*)bufferReceive, PDU_RECEIVE_BUFFER_SIZE, 0, nullptr, nullptr);
+		bool timedOut = false;
 
-		if ((sizeReceived = recvfrom(theSocket, (char*)bufferReceive, PDU_RECEIVE_BUFFER_SIZE, 0, nullptr, nullptr)) == SOCKET_ERROR) {
-			result_ss << "recvfrom failed with error: " << getWSALastErrorText(WSAGetLastError());
-			result = result_ss.str();
-			reset_cleanup();
-			return false;
-		}
-		else {
-			if (sizeReceived == 0)
-			{
-				if (transmissions >= RCOUNT)
-				{
-					result_ss << "Transaction failed due to timeout";
-					result = result_ss.str();
-					reset_cleanup();
-					return false;
-				}
+		if (sizeReceived == SOCKET_ERROR) {
+			int lastError = WSAGetLastError();
 
-				if (sendto(theSocket, (const char*)requestPDU, sizePDU, 0, aiResult->ai_addr, sizeof(*aiResult->ai_addr)) == SOCKET_ERROR) {
-					result_ss << "sendto failed with error: " << getWSALastErrorText(WSAGetLastError());
-					result = result_ss.str();
-					reset_cleanup();
-					return false;
-				}
-
-				transmissions++;
-				RTO *= 2;
-
-				iResult = setsockopt(theSocket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&RTO, sizeof(RTO));
-				if (iResult == SOCKET_ERROR) {
-					result_ss << "setsockopt for SO_RCVTIMEO failed with error: " << getWSALastErrorText(WSAGetLastError());
-					result = result_ss.str();
-					reset_cleanup();
-					return false;
-				}
-
-				continue;
+			if (lastError != WSAETIMEDOUT) {
+				result_ss << "recvfrom failed with error: " << getWSALastErrorText(lastError);
+				result = result_ss.str();
+				reset_cleanup();
+				return false;
 			}
 
-			try {
-				Message responseMessage = Message::fromPacket(bufferReceive, sizeReceived);
+			timedOut = true;
+			sizeReceived = 0;
+		}
 
-				if (responseMessage.method != MessageMethod::Binding)
-					continue;
+		if (sizeReceived == 0 && timedOut)
+		{
+			if (transmissions >= RCOUNT)
+			{
+				result_ss << "Transaction failed due to timeout";
+				result = result_ss.str();
+				reset_cleanup();
+				return false;
+			}
 
-				if (responseMessage.messageClass != MessageClass::SuccessResponse && responseMessage.messageClass != MessageClass::ErrorResponse)
-					continue;
+			RTO *= 2;
 
-				if (memcmp(requestTransactionID, responseMessage.transactionID, sizeof(uint32) * 3) != 0)
-					continue;
+			iResult = setsockopt(theSocket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&RTO, sizeof(RTO));
+			if (iResult == SOCKET_ERROR) {
+				result_ss << "setsockopt for SO_RCVTIMEO failed with error: " << getWSALastErrorText(WSAGetLastError());
+				result = result_ss.str();
+				reset_cleanup();
+				return false;
+			}
 
-				if (responseMessage.messageClass == MessageClass::ErrorResponse) {
-					std::string errorReasonPhrase;
-					uint8 errorCode;
+			if (sendto(theSocket, (const char*)requestPDU, sizePDU, 0, aiResult->ai_addr, sizeof(*aiResult->ai_addr)) == SOCKET_ERROR) {
+				result_ss << "sendto failed with error: " << getWSALastErrorText(WSAGetLastError());
+				result = result_ss.str();
+				reset_cleanup();
+				return false;
+			}
+			transmissions++;
 
-					result_ss << "Error response received";
+			continue;
+		}
 
-					try {
-						if (responseMessage.getProcessErrorAttribute(errorCode, errorReasonPhrase))
-							result_ss << ": " << errorReasonPhrase << " (" << errorCode << ")";
-					}
-					catch (const MessageProcessingException& e) {
-					}
+		if (sizeReceived < 20)
+			continue;
 
-					result = result_ss.str();
-					reset_cleanup();
-					return false;
-				}
+		try {
+			Message responseMessage = Message::fromPacket(bufferReceive, sizeReceived);
 
-				bool validMappedAddress = false;
-				uint32 mappedIPv4;
-				uint16 mappedPort;
+			if (responseMessage.method != MessageMethod::Binding)
+				continue;
+
+			if (responseMessage.messageClass != MessageClass::SuccessResponse && responseMessage.messageClass != MessageClass::ErrorResponse)
+				continue;
+
+			if (memcmp(requestTransactionID, responseMessage.transactionID, sizeof(uint32) * 3) != 0)
+				continue;
+
+			if (responseMessage.messageClass == MessageClass::ErrorResponse) {
+				std::string errorReasonPhrase;
+				uint8 errorCode;
+
+				result_ss << "Error response received";
 
 				try {
-					if (responseMessage.getProcessMappedAddress(&mappedIPv4, &mappedPort))
-						validMappedAddress = true;
-					else
-						validMappedAddress = false;
+					if (responseMessage.getProcessErrorAttribute(errorCode, errorReasonPhrase))
+						result_ss << ": " << errorReasonPhrase << " (" << errorCode << ")";
 				}
 				catch (const MessageProcessingException& e) {
+				}
+
+				result = result_ss.str();
+				reset_cleanup();
+				return false;
+			}
+
+			bool validMappedAddress = false;
+			uint32 mappedIPv4;
+			uint16 mappedPort;
+
+			try {
+				if (responseMessage.getProcessMappedAddress(&mappedIPv4, &mappedPort))
+					validMappedAddress = true;
+				else
 					validMappedAddress = false;
-				}
-
-				if (!validMappedAddress)
-				{
-					result_ss << "Invalid/Unsupported/Unavailable response mapped address attribute";
-					result = result_ss.str();
-					reset_cleanup();
-					return false;
-				}
-
-				result_ss << "Mapped Address: " \
-					<< (int)reinterpret_cast<uint8*>(&mappedIPv4)[3] << "." \
-					<< (int)reinterpret_cast<uint8*>(&mappedIPv4)[2] << "." \
-					<< (int)reinterpret_cast<uint8*>(&mappedIPv4)[1] << "." \
-					<< (int)reinterpret_cast<uint8*>(&mappedIPv4)[0] << ":" \
-					<< mappedPort;
-
-				break;
 			}
 			catch (const MessageProcessingException& e) {
-				continue;
+				validMappedAddress = false;
 			}
+
+			if (!validMappedAddress)
+			{
+				result_ss << "Invalid/Unsupported/Unavailable response mapped address attribute";
+				result = result_ss.str();
+				reset_cleanup();
+				return false;
+			}
+
+			result_ss << "Mapped Address: " \
+				<< (int)reinterpret_cast<uint8*>(&mappedIPv4)[3] << "." \
+				<< (int)reinterpret_cast<uint8*>(&mappedIPv4)[2] << "." \
+				<< (int)reinterpret_cast<uint8*>(&mappedIPv4)[1] << "." \
+				<< (int)reinterpret_cast<uint8*>(&mappedIPv4)[0] << ":" \
+				<< mappedPort;
+
+			break;
 		}
+		catch (const MessageProcessingException& e) {
+			continue;
+		}
+
 	}
 
 	result = result_ss.str();
