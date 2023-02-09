@@ -1,26 +1,38 @@
-#include <winsock2.h>
-#include <random>
 #include "Message.h"
 
 static std::random_device rd;
 static std::mt19937 gen(rd());
 static std::uniform_int_distribution<uint32> dist(0, ((uint32)(0) - 1));
 
-MessageAttribute::MessageAttribute(uint32 dataSize) : type(MessageAttributeType::Unknown), length(dataSize), data(new uint8[dataSize]) {}
-MessageAttribute::MessageAttribute(uint32 dataSize, MessageAttributeType attributeType) : type(attributeType), length(dataSize), data(new uint8[dataSize]) {}
+MessageAttribute::MessageAttribute(uint32 dataSize) : length(dataSize), data(new uint8[dataSize]) {
+	this->type = MessageAttributeType::Unknown;
+}
+MessageAttribute::MessageAttribute(uint32 dataSize, const uint8* attributeData) : length(dataSize), data(new uint8[dataSize]) {
+	this->type = MessageAttributeType::Unknown;
+
+	memcpy(this->data, attributeData, dataSize);
+}
+MessageAttribute::MessageAttribute(uint32 dataSize, MessageAttributeType attributeType) : length(dataSize), data(new uint8[dataSize]) {
+	this->type = attributeType;
+}
+MessageAttribute::MessageAttribute(uint32 dataSize, MessageAttributeType attributeType, const uint8* attributeData) : length(dataSize), data(new uint8[dataSize]) {
+	this->type = attributeType;
+
+	memcpy(this->data, attributeData, dataSize);
+}
 
 const uint32 Message::magic_cookie = 0x2112A442;
 const uint16 Message::message_type_method_mask = 0b0011111011101111;
 const uint16 Message::message_type_class_mask = 0b0000000100010000;
-Message Message::fromPacket(uint8* pdu, uint32 packetSize) {
+Message Message::fromPacket(const uint8* pdu, uint32 packetSize) {
 	if (packetSize < 20 || (packetSize - 20) % 4 != 0)
 		throw MessageProcessingException();
 	if ((pdu[0] & 0b11000000) != '\0')
 		throw MessageProcessingException();
-	if (*(reinterpret_cast<uint32*>(pdu + 4)) != htonl(magic_cookie))
+	if (*(reinterpret_cast<const uint32*>(pdu + 4)) != htonl(magic_cookie))
 		throw MessageProcessingException();
 
-	uint16 hMessageType = ntohs(*reinterpret_cast<uint16*>(pdu));
+	uint16 hMessageType = ntohs(*reinterpret_cast<const uint16*>(pdu));
 
 	uint8 methodBitIndex = 0;
 	uint8 classBitIndex = 0;
@@ -53,22 +65,22 @@ Message Message::fromPacket(uint8* pdu, uint32 packetSize) {
 	MessageClass theClass = static_cast<MessageClass>(encClass);
 	MessageMethod theMethod = static_cast<MessageMethod>(encMethod);
 
-	uint16 hMessageLength = ntohs(*reinterpret_cast<uint16*>(pdu + 2));
+	uint16 hMessageLength = ntohs(*reinterpret_cast<const uint16*>(pdu + 2));
 	if (packetSize != hMessageLength + 20)
 		throw MessageProcessingException();
 	if (hMessageLength % 4 != 0)
 		throw MessageProcessingException();
 
 	uint32 transactionID[3];
-	transactionID[0] = *(reinterpret_cast<uint32*>(pdu) + 2);
-	transactionID[1] = *(reinterpret_cast<uint32*>(pdu) + 3);
-	transactionID[2] = *(reinterpret_cast<uint32*>(pdu) + 4);
+	transactionID[0] = *(reinterpret_cast<const uint32*>(pdu) + 2);
+	transactionID[1] = *(reinterpret_cast<const uint32*>(pdu) + 3);
+	transactionID[2] = *(reinterpret_cast<const uint32*>(pdu) + 4);
 
 	std::vector<MessageAttribute> attributes;
 
-	// ATTRIBUTES PROCESSING BEINGS
+	// ATTRIBUTES PROCESSING BEGIN
 
-	uint8* pAttributes = pdu + 20;
+	uint8* pAttributes = const_cast<uint8*>(pdu + 20);
 
 	do {
 		uint16 hAttributeType;
@@ -83,15 +95,11 @@ Message Message::fromPacket(uint8* pdu, uint32 packetSize) {
 
 		memcpy(attribute.data, pAttributes, hAttributeLength);
 
-		pAttributes += (hAttributeLength % 4 == 0) ? \
-			(hAttributeLength) : (hAttributeLength + (4 - (hAttributeLength % 4)));  //Skip over attribute value padding due to 4-byte alignment
+		pAttributes += ((hAttributeLength % 4 == 0) ? (hAttributeLength) : (hAttributeLength + (4 - (hAttributeLength % 4))));  //Skip over attribute value padding due to 4-byte alignment
 
 		attributes.push_back(attribute);
 
 	} while (pAttributes < pdu + 20 + hMessageLength);
-
-	if (pAttributes != pdu + 20 + hMessageLength)
-		throw MessageProcessingException();
 
 	// ATTRIBUTES PROCESSING END
 
@@ -138,7 +146,8 @@ Message::Message(MessageMethod method, MessageClass messageClass, uint32 transac
 	this->transactionID[1] = transactionID[1];
 	this->transactionID[2] = transactionID[2];
 }
-uint32 Message::encodeMessageWOAttrs(uint8* pdu) {
+uint32 Message::encodeMessage(uint8* pdu)
+{
 	if (method == MessageMethod::Unknown)
 		throw MessageProcessingException();
 
@@ -169,8 +178,15 @@ uint32 Message::encodeMessageWOAttrs(uint8* pdu) {
 		}
 	}
 
+	uint16 hMessageLength = 0;
+
+	for (MessageAttribute attribute : attributes) {
+		hMessageLength += 4;
+		hMessageLength += ((attribute.length % 4 == 0) ? (attribute.length) : (attribute.length + (4 - (attribute.length % 4))));
+	}
+
 	uint16 nMessageType = htons(hMessageType);
-	uint16 nMessageLength = htons(0);
+	uint16 nMessageLength = htons(hMessageLength);
 	uint32 nMagicCookie = htonl(magic_cookie);
 
 	memcpy(((uint16*)pdu) + 0, &nMessageType, sizeof(uint16));
@@ -178,8 +194,29 @@ uint32 Message::encodeMessageWOAttrs(uint8* pdu) {
 	memcpy(((uint32*)pdu) + 1, &nMagicCookie, sizeof(uint32));
 	memcpy(((uint8*)pdu) + 8, transactionID, sizeof(uint32) * 3);
 
+	uint8* pAttributes = pdu + 20;
 
-	return 20;
+	for (MessageAttribute attribute : attributes) {
+		if (attribute.type == MessageAttributeType::Unknown)
+			throw MessageProcessingException();
+
+		uint16 nAttributeType = htons(static_cast<uint16>(attribute.type));
+		uint16 nAttributeLength = htons(attribute.length);
+
+		memcpy(pAttributes, &nAttributeType, 2);
+		pAttributes += 2;
+		memcpy(pAttributes, &nAttributeLength, 2);
+		pAttributes += 2;
+
+		memcpy(pAttributes, attribute.data, attribute.length);
+		pAttributes += attribute.length;
+
+		uint8 padding = ((attribute.length % 4 == 0) ? (0) : (4 - (attribute.length % 4)));
+		memset(pAttributes, 0, padding);
+		pAttributes += padding;
+	}
+
+	return 20 + hMessageLength;
 }
 void Message::getMappedAddress(uint32* ipv4, uint16* port)
 {
@@ -200,6 +237,32 @@ void Message::getMappedAddress(uint32* ipv4, uint16* port)
 	//}
 
 	//throw MessageProcessingException();
+}
+bool Message::getProcessErrorAttribute(uint8& errorCode, std::string& reasonPhrase)
+{
+	for (MessageAttribute attribute : attributes) {
+		if (attribute.type == MessageAttributeType::ERROR_CODE) {
+			if (attribute.length < 4)
+				throw MessageProcessingException();
+
+			uint8 errorCodeClass = attribute.data[2] & 0b00000111;
+
+			if (errorCodeClass < 3 || errorCodeClass > 6)
+				throw MessageProcessingException();
+
+			uint8 errorCodeNumber = attribute.data[3];
+
+			if (errorCodeNumber > 99)
+				throw MessageProcessingException();
+
+			errorCode = errorCodeClass * 100 + errorCodeNumber;
+			reasonPhrase = std::string(reinterpret_cast<const char* const>(attribute.data + 4), attribute.length - 4);
+
+			return true;
+		}
+	}
+
+	return false; //means no error attribute present
 }
 void Message::populateRandomTransactionID() {
 	transactionID[0] = dist(gen);

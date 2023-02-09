@@ -5,6 +5,8 @@ VisualStudioVersion = 17.4.33213.308
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "STUN Client Library", "STUN Client Library\STUN Client Library.vcxproj", "{E46D3F0A-188F-49C5-B11C-F6D60DCEF8EE}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "IP Display Console", "IP Display\IP Display.vcxproj", "{4CAD7923-7267-4607-8A56-E63E6F2B9AD9}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -15,6 +17,10 @@ Global
 		{E46D3F0A-188F-49C5-B11C-F6D60DCEF8EE}.Debug|x64.Build.0 = Debug|x64
 		{E46D3F0A-188F-49C5-B11C-F6D60DCEF8EE}.Release|x64.ActiveCfg = Release|x64
 		{E46D3F0A-188F-49C5-B11C-F6D60DCEF8EE}.Release|x64.Build.0 = Release|x64
+		{4CAD7923-7267-4607-8A56-E63E6F2B9AD9}.Debug|x64.ActiveCfg = Debug|x64
+		{4CAD7923-7267-4607-8A56-E63E6F2B9AD9}.Debug|x64.Build.0 = Debug|x64
+		{4CAD7923-7267-4607-8A56-E63E6F2B9AD9}.Release|x64.ActiveCfg = Release|x64
+		{4CAD7923-7267-4607-8A56-E63E6F2B9AD9}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

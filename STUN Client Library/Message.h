@@ -1,7 +1,9 @@
 #pragma once
 
-#include <vector>
 #include "types.h"
+#include <winsock2.h>
+#include <random>
+#include <vector>
 
 enum class MessageAttributeType : uint16 {
 	MAPPED_ADDRESS = 0x0001,
@@ -37,7 +39,7 @@ enum class MessageMethod : uint16 {
 	Reserved0 = 0x000,
 	Reserved1 = 0x002,
 
-	Unknown = 0xFFFF
+	Unknown = 0x0FF
 };
 enum class MessageClass : uint8 {
 	Request = 0b00,
@@ -52,22 +54,25 @@ class MessageProcessingException : public std::exception {
 class MessageAttribute {
 public:
 	MessageAttribute(uint32 dataSize);
+	MessageAttribute(uint32 dataSize, const uint8* attributeData);
 	MessageAttribute(uint32 dataSize, MessageAttributeType attributeType);
+	MessageAttribute(uint32 dataSize, MessageAttributeType attributeType, const uint8* attributeData);
 
 	MessageAttributeType type;
 	uint16 length;
-	uint8* data;
+	uint8* data; //TODO delete[] (probably in deconstructor)
 };
 
 class Message {
 public:
-	static Message fromPacket(uint8* pdu, uint32 packetSize);
+	static Message fromPacket(const uint8* pdu, uint32 packetSize);
 	Message(MessageMethod method, MessageClass messageClass);
 	Message(MessageMethod method, MessageClass messageClass, std::vector<MessageAttribute> attributes);
 	Message(MessageMethod method, MessageClass messageClass, uint32 transactionID[3]);
 	Message(MessageMethod method, MessageClass messageClass, uint32 transactionID[3], std::vector<MessageAttribute> attributes);
-	uint32 encodeMessageWOAttrs(uint8* pdu);
+	uint32 encodeMessage(uint8* pdu);
 	void getMappedAddress(uint32* ipv4, uint16* port);
+	bool getProcessErrorAttribute(uint8& errorCode, std::string& reasonPhrase);
 
 	std::vector<MessageAttribute> attributes;
 	MessageMethod method;
@@ -81,37 +86,37 @@ private:
 	static const uint16 message_type_class_mask;
 };
 
-inline std::string chek(unsigned char* data, unsigned int size, bool reverse = false) {
-	std::vector<std::string> allBitSequences;
-
-
-	for (unsigned int byte = 0; byte < size; byte++) {
-		std::string bitSequence("");
-
-		for (int bit = 0; bit < 8; bit++) {
-			unsigned char a = (data[byte] >> bit);
-			bitSequence.insert(0, 1, a % 2 ? '1' : '0');
-		}
-
-		allBitSequences.push_back(bitSequence);
-	}
-
-	std::string result("");
-
-	unsigned int sss = allBitSequences.size();
-
-	if (reverse) {
-		for (int zz = 0; zz < sss; zz++) {
-			result.append(allBitSequences[zz]);
-			if (zz < sss - 1)result.append("\n");
-		}
-	}
-	else {
-		for (int zz = sss - 1; zz >= 0; zz--) {
-			result.append(allBitSequences[zz]);
-			if (zz > 0)result.append("\n");
-		}
-	}
-
-	return result;
-}
+//inline std::string chek(unsigned char* data, unsigned int size, bool reverse = false) {
+//	std::vector<std::string> allBitSequences;
+//
+//
+//	for (unsigned int byte = 0; byte < size; byte++) {
+//		std::string bitSequence("");
+//
+//		for (int bit = 0; bit < 8; bit++) {
+//			unsigned char a = (data[byte] >> bit);
+//			bitSequence.insert(0, 1, a % 2 ? '1' : '0');
+//		}
+//
+//		allBitSequences.push_back(bitSequence);
+//	}
+//
+//	std::string result("");
+//
+//	unsigned int sss = allBitSequences.size();
+//
+//	if (reverse) {
+//		for (int zz = 0; zz < sss; zz++) {
+//			result.append(allBitSequences[zz]);
+//			if (zz < sss - 1)result.append("\n");
+//		}
+//	}
+//	else {
+//		for (int zz = sss - 1; zz >= 0; zz--) {
+//			result.append(allBitSequences[zz]);
+//			if (zz > 0)result.append("\n");
+//		}
+//	}
+//
+//	return result;
+//}
