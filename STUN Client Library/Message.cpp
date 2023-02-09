@@ -218,28 +218,33 @@ uint32 Message::encodeMessage(uint8* pdu)
 
 	return 20 + hMessageLength;
 }
-bool Message::getProcessMappedAddress(uint32* ipv4, uint16* port)
+
+bool Message::getProcessIPv4MappedAddress(uint32* ipv4, uint16* port)
 {
-	//for (auto attribute : attributes) {
-	//	if (attribute.type == MessageAttributeType::XOR_MAPPED_ADDRESS && attribute.length == 8 && reinterpret_cast<uint8*>(attribute.value.get())[1] == 1) {
+	for (auto attribute : attributes) {
+		if (attribute.type == MessageAttributeType::XOR_MAPPED_ADDRESS) {
+			if (attribute.length != 8)
+				return false;
 
-	//		uint16 encodedPort = *reinterpret_cast<uint16*>(attribute.value.get() + 2);
-	//		uint32 encodedIP = *reinterpret_cast<uint32*>(attribute.value.get() + 4);
+			if (attribute.data[1] != 0x01)
+				return false;
 
-	//		encodedPort = ntohs(encodedPort);
-	//		encodedIP = ntohl(encodedIP);
+			uint16 nEncodedPort = *reinterpret_cast<uint16*>(attribute.data + 2);
+			uint32 nEncodedIP = *reinterpret_cast<uint32*>(attribute.data + 4);
 
-	//		*port = encodedPort ^ static_cast<const uint16>(magic_cookie >> 16);
-	//		*ipv4 = encodedIP ^ magic_cookie;
+			uint16 hEncodedPort = ntohs(nEncodedPort);
+			uint32 hEcodedIP = ntohl(nEncodedIP);
 
-	//		return;
-	//	}
-	//}
+			*port = hEncodedPort ^ static_cast<const uint16>(magic_cookie >> 16);
+			*ipv4 = hEcodedIP ^ magic_cookie;
 
-	//throw MessageProcessingException();
+			return true;
+		}
+	}
 
-	return true;
+	return false;
 }
+
 bool Message::getProcessErrorAttribute(uint8& errorCode, std::string& reasonPhrase)
 {
 	for (MessageAttribute attribute : attributes) {

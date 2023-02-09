@@ -246,7 +246,7 @@ bool fetch(const char* hostAddress, const unsigned short hostPort, std::string& 
 			uint16 mappedPort;
 
 			try {
-				if (responseMessage.getProcessMappedAddress(&mappedIPv4, &mappedPort))
+				if (responseMessage.getProcessIPv4MappedAddress(&mappedIPv4, &mappedPort))
 					validMappedAddress = true;
 				else
 					validMappedAddress = false;
