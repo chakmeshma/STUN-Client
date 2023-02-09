@@ -19,7 +19,7 @@
 #define WIN32_SOCK_MAJ_VER 2
 #define WIN32_SOCK_MIN_VER 2
 
-#define PDU_SEND_BUFFER_SIZE 128
+#define PDU_SEND_BUFFER_SIZE 512
 #define PDU_RECEIVE_BUFFER_SIZE 1024
 
 #define INITIAL_RTO 500
@@ -71,16 +71,17 @@ bool start(std::string& result) {
 	bWSAInited = true;
 
 	if (iResult != 0) {
-		stop();
-
 		result_ss << "WSAStartup failed: " << getWSALastErrorText(iResult);
 		result = result_ss.str();
-		return FALSE;
+
+		stop();
+
+		return false;
 	}
 
 	result_ss << "WSAStartup successful";
 	result = result_ss.str();
-	return TRUE;
+	return true;
 }
 bool fetch(const char* hostAddress, const unsigned short hostPort, std::string& result)
 {
@@ -104,7 +105,7 @@ bool fetch(const char* hostAddress, const unsigned short hostPort, std::string& 
 		result_ss << "getaddrinfo failed: " << getWSALastErrorText(WSAGetLastError());
 		result = result_ss.str();
 		reset_cleanup();
-		return FALSE;
+		return false;
 	}
 
 	theSocket = socket(aiResult->ai_family, aiResult->ai_socktype, aiResult->ai_protocol);
@@ -114,12 +115,12 @@ bool fetch(const char* hostAddress, const unsigned short hostPort, std::string& 
 		result_ss << "Error at socket(): " << getWSALastErrorText(WSAGetLastError());
 		result = result_ss.str();
 		reset_cleanup();
-		return FALSE;
+		return false;
 	}
 
 	std::string software = "Chakmeshma STUN Client";
 	MessageAttribute softwareAttr(software.size(), MessageAttributeType::SOFTWARE, reinterpret_cast<const uint8*>(software.c_str()));
-	Message requestMessage = Message(MessageMethod::Binding, MessageClass::Request, std::vector<MessageAttribute> {softwareAttr});
+	Message requestMessage = Message(MessageMethod::Binding, MessageClass::Request, std::vector<MessageAttribute> {softwareAttr}); // TODO check if attributs is modifiable (reference returnd)
 
 	uint32 requestTransactionID[3];
 	memcpy(requestTransactionID, requestMessage.transactionID, sizeof(uint32) * 3);
@@ -133,7 +134,7 @@ bool fetch(const char* hostAddress, const unsigned short hostPort, std::string& 
 		result_ss << "sendto failed with error: " << getWSALastErrorText(WSAGetLastError());
 		result = result_ss.str();
 		reset_cleanup();
-		return FALSE;
+		return false;
 	}
 	transmissions++;
 
@@ -144,7 +145,7 @@ bool fetch(const char* hostAddress, const unsigned short hostPort, std::string& 
 		result_ss << "setsockopt for SO_RCVTIMEO failed with error: " << getWSALastErrorText(WSAGetLastError());
 		result = result_ss.str();
 		reset_cleanup();
-		return FALSE;
+		return false;
 	}
 
 	uint8 bufferReceive[PDU_RECEIVE_BUFFER_SIZE];
@@ -156,7 +157,7 @@ bool fetch(const char* hostAddress, const unsigned short hostPort, std::string& 
 			result_ss << "recvfrom failed with error: " << getWSALastErrorText(WSAGetLastError());
 			result = result_ss.str();
 			reset_cleanup();
-			return FALSE;
+			return false;
 		}
 		else {
 			if (sizeReceived == 0)
@@ -166,14 +167,14 @@ bool fetch(const char* hostAddress, const unsigned short hostPort, std::string& 
 					result_ss << "Transaction failed due to timeout";
 					result = result_ss.str();
 					reset_cleanup();
-					return FALSE;
+					return false;
 				}
 
 				if (sendto(theSocket, (const char*)requestPDU, sizePDU, 0, aiResult->ai_addr, sizeof(*aiResult->ai_addr)) == SOCKET_ERROR) {
 					result_ss << "sendto failed with error: " << getWSALastErrorText(WSAGetLastError());
 					result = result_ss.str();
 					reset_cleanup();
-					return FALSE;
+					return false;
 				}
 
 				transmissions++;
@@ -184,7 +185,7 @@ bool fetch(const char* hostAddress, const unsigned short hostPort, std::string& 
 					result_ss << "setsockopt for SO_RCVTIMEO failed with error: " << getWSALastErrorText(WSAGetLastError());
 					result = result_ss.str();
 					reset_cleanup();
-					return FALSE;
+					return false;
 				}
 
 				continue;
@@ -206,25 +207,41 @@ bool fetch(const char* hostAddress, const unsigned short hostPort, std::string& 
 					std::string errorReasonPhrase;
 					uint8 errorCode;
 
+					result_ss << "Error response received";
+
 					try {
 						if (responseMessage.getProcessErrorAttribute(errorCode, errorReasonPhrase))
-							result_ss << "Error response received: " << errorReasonPhrase << " (" << errorCode << ")";
-						else
-							result_ss << "Error response received";
+							result_ss << ": " << errorReasonPhrase << " (" << errorCode << ")";
 					}
 					catch (const MessageProcessingException& e) {
-						result_ss << "Error response received";
 					}
 
 					result = result_ss.str();
 					reset_cleanup();
-					return FALSE;
+					return false;
 				}
 
+				bool validMappedAddress = false;
 				uint32 mappedIPv4;
 				uint16 mappedPort;
 
-				responseMessage.getMappedAddress(&mappedIPv4, &mappedPort);
+				try {
+					if (responseMessage.getProcessMappedAddress(&mappedIPv4, &mappedPort))
+						validMappedAddress = true;
+					else
+						validMappedAddress = false;
+				}
+				catch (const MessageProcessingException& e) {
+					validMappedAddress = false;
+				}
+
+				if (!validMappedAddress)
+				{
+					result_ss << "Invalid/Unsupported/Unavailable response mapped address attribute";
+					result = result_ss.str();
+					reset_cleanup();
+					return false;
+				}
 
 				result_ss << "Mapped Address: " \
 					<< (int)reinterpret_cast<uint8*>(&mappedIPv4)[3] << "." \
@@ -243,7 +260,7 @@ bool fetch(const char* hostAddress, const unsigned short hostPort, std::string& 
 
 	result = result_ss.str();
 	reset_cleanup();
-	return TRUE;
+	return true;
 }
 void stop()
 {

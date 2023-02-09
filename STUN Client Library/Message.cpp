@@ -218,7 +218,7 @@ uint32 Message::encodeMessage(uint8* pdu)
 
 	return 20 + hMessageLength;
 }
-void Message::getMappedAddress(uint32* ipv4, uint16* port)
+bool Message::getProcessMappedAddress(uint32* ipv4, uint16* port)
 {
 	//for (auto attribute : attributes) {
 	//	if (attribute.type == MessageAttributeType::XOR_MAPPED_ADDRESS && attribute.length == 8 && reinterpret_cast<uint8*>(attribute.value.get())[1] == 1) {
@@ -237,6 +237,8 @@ void Message::getMappedAddress(uint32* ipv4, uint16* port)
 	//}
 
 	//throw MessageProcessingException();
+
+	return true;
 }
 bool Message::getProcessErrorAttribute(uint8& errorCode, std::string& reasonPhrase)
 {

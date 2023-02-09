@@ -71,7 +71,7 @@ public:
 	Message(MessageMethod method, MessageClass messageClass, uint32 transactionID[3]);
 	Message(MessageMethod method, MessageClass messageClass, uint32 transactionID[3], std::vector<MessageAttribute> attributes);
 	uint32 encodeMessage(uint8* pdu);
-	void getMappedAddress(uint32* ipv4, uint16* port);
+	bool getProcessMappedAddress(uint32* ipv4, uint16* port);
 	bool getProcessErrorAttribute(uint8& errorCode, std::string& reasonPhrase);
 
 	std::vector<MessageAttribute> attributes;
