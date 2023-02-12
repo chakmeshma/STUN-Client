@@ -16,6 +16,8 @@ BOOL WINAPI closeHandler(DWORD CtrlType) {
 int main(int argc, char* argv[])
 {
 	if (argc != 3) {
+		std::cout << "Usage: IP Display Console.exe <target STUN server name> <port>" << std::endl;
+
 		return EXIT_FAILURE;
 	}
 
