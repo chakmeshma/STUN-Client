@@ -94,8 +94,8 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 	STUNThreadData* stunData = new STUNThreadData();
 	stunData->dataLock = new std::mutex();
 	stunData->state = STUNState::Unknown;
-	stunData->targetAddress = "stun.avigora.fr";
-	stunData->targetPort = 3478;
+	stunData->targetAddress = "stun.l.google.com";
+	stunData->targetPort = 19302;
 
 	std::string startResult;
 	bool successInit = start(startResult);
