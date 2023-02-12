@@ -23,7 +23,7 @@
 #define PDU_RECEIVE_BUFFER_SIZE 1024
 
 #define INITIAL_RTO 500
-#define RCOUNT 7
+#define RCOUNT 4
 
 static addrinfo aiHints, * aiResult;
 static SOCKET theSocket;

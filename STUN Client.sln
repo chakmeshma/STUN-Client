@@ -7,6 +7,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "STUN Client Library", "STUN
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "IP Display Console", "IP Display\IP Display.vcxproj", "{4CAD7923-7267-4607-8A56-E63E6F2B9AD9}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "IP Display Window", "IP Display Window\IP Display Window.vcxproj", "{504E6A76-DAB3-40BD-93A6-853DA7281B8A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -21,6 +23,10 @@ Global
 		{4CAD7923-7267-4607-8A56-E63E6F2B9AD9}.Debug|x64.Build.0 = Debug|x64
 		{4CAD7923-7267-4607-8A56-E63E6F2B9AD9}.Release|x64.ActiveCfg = Release|x64
 		{4CAD7923-7267-4607-8A56-E63E6F2B9AD9}.Release|x64.Build.0 = Release|x64
+		{504E6A76-DAB3-40BD-93A6-853DA7281B8A}.Debug|x64.ActiveCfg = Debug|x64
+		{504E6A76-DAB3-40BD-93A6-853DA7281B8A}.Debug|x64.Build.0 = Debug|x64
+		{504E6A76-DAB3-40BD-93A6-853DA7281B8A}.Release|x64.ActiveCfg = Release|x64
+		{504E6A76-DAB3-40BD-93A6-853DA7281B8A}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
