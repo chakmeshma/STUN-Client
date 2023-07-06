@@ -79,12 +79,19 @@
     <ClCompile Include="IP Display Window.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="resource.h" />
     <ClInclude Include="stun thread data.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\STUN Client Library\STUN Client Library.vcxproj">
       <Project>{e46d3f0a-188f-49c5-b11c-f6d60dcef8ee}</Project>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="IP Display Window.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="icon1.ico" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
